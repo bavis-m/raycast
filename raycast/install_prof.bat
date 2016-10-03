@@ -1,0 +1,1 @@
+stack install --executable-profiling --ghc-options="-fprof-auto -rtsopts"

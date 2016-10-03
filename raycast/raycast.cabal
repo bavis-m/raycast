@@ -1,0 +1,37 @@
+name:                raycast
+version:             0.1.0.0
+synopsis:            Raycast engine
+description:         Please see README.md
+homepage:            
+license-file:        LICENSE
+author:              Mark Bavis
+copyright:           2016 Mark Bavis
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable raycast
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , vect
+                     , transformers
+                     , lens
+                     , array
+                     , containers
+                     , text
+                     , attoparsec
+                     , dlist
+  other-modules:       Raycast.Grid
+                     , Raycast.Intersection
+                     , Raycast.SimpleLens
+                     , Game.Level
+                     , Engine.RuntimeInterface
+                     , Game.Game
+                     , Game.Input
+                     , Raycast.Raycast
+                     , Util.Util
+                     , Game.Keys
+  extra-libraries:     RaycastRuntime
+  extra-lib-dirs:      .
+  include-dirs:        .

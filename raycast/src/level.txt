@@ -1,0 +1,9 @@
+tile W 3 floor.png wall.png
+tile f 0 floor.png wall.png
+
+4 4
+
+WWWW
+WffW
+WffW
+WWWW
