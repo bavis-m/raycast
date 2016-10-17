@@ -288,6 +288,13 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 		
 		mat4 viewM = translateM * scaleM;
 
+		printf("viewM: %f %f %f %f\n       %f %f %f %f\n       %f %f %f %f\n       %f %f %f %f\n",
+			viewM[0].x, viewM[1].x, viewM[2].x, viewM[3].x,
+			viewM[0].y, viewM[1].y, viewM[2].y, viewM[3].y,
+			viewM[0].z, viewM[1].z, viewM[2].z, viewM[3].z,
+			viewM[0].w, viewM[1].w, viewM[2].w, viewM[3].w
+			);
+
 		float* ptr = value_ptr(viewM);
 		GLint viewLoc = glGetUniformLocation(program, "view");
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, ptr);
