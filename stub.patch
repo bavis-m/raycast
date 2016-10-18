@@ -1,0 +1,22 @@
+diff --git a/raycast/src/Game/Game.hs b/raycast/src/Game/Game.hs
+index 0943fe5..f2bc5b8 100644
+--- a/raycast/src/Game/Game.hs
++++ b/raycast/src/Game/Game.hs
+@@ -37,16 +37,7 @@ right :: Double -> Vec2
+ right angle = mkVec2 (cos angle, sin angle)
+ 
+ instance Renderable GameState where
+-  render rp@(RenderParams w h) (GameState input level (bottomSky, topSky) view) =
+-      let        
+-        halfColumn = floor $ fromIntegral w / 2
+-        forward = forwards (vAngle view) &* vpPlaneDist view
+-        start = vPos view
+-        sections = foldr (++) [] $ (flip map) [0..(w-1)] $
+-            \i -> let
+-                    dir = forward &+ (right (vAngle view)  &* realToFrac (i - halfColumn))
+-                  in renderColumn rp (tile level) i (mkRay start dir) forward (ViewParams bottomSky topSky (vHorizon view) 380 30 (vEyeHeight view))
+-      in RenderFrame sections
++  render _ _ = RenderFrame []
+ 
+ ifVal :: Bool -> Double -> Double
+ ifVal b v | b = v
