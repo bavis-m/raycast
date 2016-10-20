@@ -267,7 +267,7 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 		SDL_GetRelativeMouseState(&update->mouseRelX, &update->mouseRelY);
 
 		update->time = invFrameRate;
-		engineFrame* frame = updateFunc(params, update);
+		engineFrame* frame = updateCallStub(updateFunc, params, update);
 
 		Uint32 updateTicks = SDL_GetTicks();
 
