@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Game.Game (GameState, updateState, Viewpoint(..), parseAndLoad) where
 
@@ -26,9 +27,43 @@ import Control.Monad.Trans.Class
 import Data.List
 import qualified Data.Map.Strict as Map
 
-data Viewpoint = Viewpoint { vAngle :: Double, vPos :: Vec2, vHorizon :: Double, vEyeHeight :: Double, vpPlaneDist :: Double }
+data Viewpoint = Viewpoint { vAngle :: Double, vPos :: Vec2, vHorizon :: Double, vEyeHeight :: Double, vPlaneDist :: Double }
 
 data GameState = GameState InputState (Level Tile) (Int, Int) Viewpoint
+
+data HalfTile = None | Floor (Double, Maybe Double) FloorTex WallTex deriving (Show)
+data Tile = TileWall WallTex | TileOpen HalfTile HalfTile deriving (Show)
+
+halfTileSurface :: HalfTile -> HorzSurface
+halfTileSurface None = NoSurface
+halfTileSurface (Floor h tex _) = HorzSurface h tex
+
+tileVolume :: Tile -> Volume
+tileVolume (TileWall _) = Volume NoSurface NoSurface
+tileVolume (TileOpen bottom top) = Volume (halfTileSurface bottom) (halfTileSurface top)
+
+instance Geometry (Level Tile) where
+  getVolume v level = tileVolume $ tile level $ mkCell v
+  {-# INLINE getVolume #-}
+  
+  intersect ray level = let
+      wallSurfaceFromHalfTile (Floor _ _ tex) = WallSurface tex
+      wallSurfaceFromHalfTile _ = NoWall
+      
+      wallFromTile (TileWall tex) = Wall tex
+      wallFromTile (TileOpen bottom top) = Open (wallSurfaceFromHalfTile bottom) (wallSurfaceFromHalfTile top)
+      
+      horzSurfaceFromHalfTile None = NoSurface
+      horzSurfaceFromHalfTile (Floor r tex _) = HorzSurface r tex
+      
+      volumeFromTile (TileWall _) = Volume NoSurface NoSurface
+      volumeFromTile (TileOpen bottom top) = Volume (horzSurfaceFromHalfTile bottom) (horzSurfaceFromHalfTile top)
+      
+      geometryIntersection i = let
+          intersectionTile = tile level $ intersectionCell i
+        in GI (tValue i) (collisionU ray i) (wallFromTile intersectionTile) (volumeFromTile intersectionTile)
+    in fmap geometryIntersection $ intersections ray
+  {-# INLINE intersect #-}
 
 forwards :: Double -> Vec2
 forwards angle = mkVec2 (- (sin angle), cos angle)
@@ -37,16 +72,11 @@ right :: Double -> Vec2
 right angle = mkVec2 (cos angle, sin angle)
 
 instance Renderable GameState where
-  render rp@(RenderParams w h) (GameState input level (bottomSky, topSky) view) =
-      let        
-        halfColumn = floor $ fromIntegral w / 2
-        forward = forwards (vAngle view) &* vpPlaneDist view
-        start = vPos view
-        sections = foldr (++) [] $ (flip map) [0..(w-1)] $
-            \i -> let
-                    dir = forward &+ (right (vAngle view)  &* realToFrac (i - halfColumn))
-                  in renderColumn rp (tile level) i (mkRay start dir) forward (ViewParams bottomSky topSky (vHorizon view) 380 30 (vEyeHeight view))
-      in RenderFrame sections
+  render rp (GameState input level (bottomSky, topSky) view) = let
+      viewParams = (ViewParams bottomSky topSky (vHorizon view) 380 30 (vEyeHeight view) (vPlaneDist view))
+      ray = mkRay (vPos view) $ forwards $ vAngle view
+      sections = renderGeometry rp level viewParams ray
+    in RenderFrame sections
 
 ifVal :: Bool -> Double -> Double
 ifVal b v | b = v
@@ -207,9 +237,9 @@ wallTileTex m skyTex Nothing = WallTex skyVal WallSky
   where skyVal = maybe (-1) (m Map.!) skyTex
   
 combineTileDefs :: Map.Map String Int -> (Maybe String, Maybe String) -> (TileDef, TileDef) -> Tile
-combineTileDefs m _ (TDWall tex, _) = Wall $ wallTileTex m Nothing tex
-combineTileDefs m _ (_, TDWall tex) = Wall $ wallTileTex m Nothing tex
-combineTileDefs m (bottomSkyTex, topSkyTex) (floor, ceiling) = Open (toHalfTile m bottomSkyTex floor) (toHalfTile m topSkyTex ceiling)
+combineTileDefs m _ (TDWall tex, _) = TileWall $ wallTileTex m Nothing tex
+combineTileDefs m _ (_, TDWall tex) = TileWall $ wallTileTex m Nothing tex
+combineTileDefs m (bottomSkyTex, topSkyTex) (floor, ceiling) = TileOpen (toHalfTile m bottomSkyTex floor) (toHalfTile m topSkyTex ceiling)
   
 parseAndLoad :: String -> ExceptT String IO GameState
 parseAndLoad contentsStr =
@@ -229,7 +259,7 @@ parseAndLoad contentsStr =
     let level = mkLevel
                   (ldWidth levelDef)
                   (ldHeight levelDef)
-                  (Open None None)
+                  (TileOpen None None)
                   (fmap (combineTileDefs idsByTextureName (ldBottomSky levelDef, ldTopSky levelDef)) $ zip tilesBottom tilesTop)
     let viewpoint = Viewpoint angle  pos 200 0.6 400
     

@@ -279,6 +279,9 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 
 		glUseProgram(program);
 
+		GLint texLoc = glGetUniformLocation(program, "tex");
+		glUniform1i(texLoc, 0);
+
 		glBindAttribLocation(program, 0, "pos");
 		glBindAttribLocation(program, 1, "uv");
 
@@ -288,12 +291,14 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 		
 		mat4 viewM = translateM * scaleM;
 
+		/*
 		printf("viewM: %f %f %f %f\n       %f %f %f %f\n       %f %f %f %f\n       %f %f %f %f\n",
 			viewM[0].x, viewM[1].x, viewM[2].x, viewM[3].x,
 			viewM[0].y, viewM[1].y, viewM[2].y, viewM[3].y,
 			viewM[0].z, viewM[1].z, viewM[2].z, viewM[3].z,
 			viewM[0].w, viewM[1].w, viewM[2].w, viewM[3].w
 			);
+		*/
 
 		float* ptr = value_ptr(viewM);
 		GLint viewLoc = glGetUniformLocation(program, "view");
@@ -304,6 +309,8 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 			vertexStoragePerTexture[tex]->index = 0;
 			vertexStoragePerTexture[tex]->total = 0;
 		}
+
+		Uint32 memStartTicks = SDL_GetTicks();
 
 		for (int i = 0; i < frame->numColumnSections; i++)
 		{
@@ -362,28 +369,35 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 
 		for (int tex = 0; tex < vertexStoragePerTexture.size(); tex++)
 		{
+
+			Uint32 setupTicks = SDL_GetTicks();
+
 			vertexStorage* storage = vertexStoragePerTexture[tex];
+
+			
+
 			glBindTexture(GL_TEXTURE_2D, storage->tex);
+
+			
 
 			glBindVertexArray(vao);
 
 			glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+			
+
 			glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * 6 * storage->total, storage->vertexData, GL_DYNAMIC_DRAW);
 
 			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, 0);
 			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)(sizeof(float) * 2));
 
-			GLint texLoc = glGetUniformLocation(program, "tex");
-
-			glUniform1i(texLoc, 0);
-
-			glBindVertexArray(vao);
+			
 
 			glDrawArrays(GL_TRIANGLES, 0, storage->total * 6);
 
 			Uint32 drawTicks = SDL_GetTicks();
 
-			wcout << "  Render " << *storage->texName << " " << (drawTicks - drawStartTicks) << "  (" << storage->total << ")" << std::endl;
+			wcout << "  Render " << *storage->texName << " " << (setupTicks - drawStartTicks) << "  " << (drawTicks - setupTicks) << "  (" << storage->total << ")" << std::endl;
 			drawStartTicks = drawTicks;
 		}
 
@@ -395,7 +409,7 @@ extern "C" void __cdecl run(updateDataFunc updateFunc)
 		Uint32 delta = now - lastTicks;
 
 		int waitTime = max(0, invFrameRateMS - (int)delta);
-		cout << "Delay " << waitTime << "   " << (updateTicks - lastTicks) << "   " << (memTicks - updateTicks) << std::endl;
+		cout << "Delay " << waitTime << "   " << (updateTicks - lastTicks) << "   " << (memTicks - memStartTicks) << std::endl << std::endl;
 
 		SDL_Delay(waitTime);
 	}
