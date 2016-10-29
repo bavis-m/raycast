@@ -1,4 +1,19 @@
-module Raycast.Raycast(renderColumn, ViewParams(..), FloorTex(..), WallTex(..), FloorUV(..), WallUV(..), HorzSurface(..), WallSurface(..), Volume(..), GeometryIntersection(..), WallIntersection(..), Geometry(..), renderGeometry) where
+module Raycast.Raycast
+       (
+         renderColumn,
+         ViewParams(..),
+         FloorTex(..),
+         WallTex(..),
+         FloorUV(..),
+         WallUV(..),
+         HorzSurface(..),
+         WallSurface(..),
+         Volume(..),
+         GeometryIntersection(..),
+         WallIntersection(..),
+         Geometry(..),
+         renderGeometry
+       ) where
 
 import qualified Data.DList as DL
 import Data.Vect.Double.Base
@@ -21,7 +36,9 @@ data WallSurface = NoWall | WallSurface WallTex
 data Volume = Volume { vBottom :: HorzSurface, vTop :: HorzSurface } deriving (Show, Eq)
 data WallIntersection = Wall WallTex | Open WallSurface WallSurface
 
-data GeometryIntersection = GI { giDistance :: Double, giUCoord :: Double, giWall :: WallIntersection, giNextVolume :: Volume }
+data Sprite = Sprite { spBottom :: Double, spTop :: Double, spUCoord :: Double, spTex :: Int }
+
+data GeometryIntersection = GI { giDistance :: Double, giUCoord :: Double, giWall :: WallIntersection, giSprites :: [Sprite], giNextVolume :: Volume }
 
 class Geometry a where
   getVolume :: Vec2 -> a -> Volume
@@ -118,8 +135,8 @@ renderColumn renderParams column ray forward viewParams geometry = let
     collapseIntersections :: Volume -> [GeometryIntersection] -> [GeometryIntersection]
     collapseIntersections v [] = []
     collapseIntersections v [i] = [i]
-    collapseIntersections v (i@(GI _ _ (Wall _) nextVolume):is) = i : collapseIntersections nextVolume is
-    collapseIntersections v (i@(GI _ _ _ nextVolume):is) | v == nextVolume = collapseIntersections nextVolume is
+    collapseIntersections v (i@(GI _ _ (Wall _) _ nextVolume):is) = i : collapseIntersections nextVolume is
+    collapseIntersections v (i@(GI _ _ _ _ nextVolume):is) | v == nextVolume = collapseIntersections nextVolume is
                                                          | otherwise = i : collapseIntersections nextVolume is
     
     -- take a range of pixels on the floor, and split them up so we can z-interpolate the ends to make it look decent
@@ -191,19 +208,23 @@ renderColumn renderParams column ray forward viewParams geometry = let
           createSideWallRanges side (HorzSurface (height, bound) _) (WallSurface tex) defaultTex window = wallRanges window side height bound tex defaultTex
           createSideWallRanges side _ _ defaultTex window = (window, DL.empty)
           
-          createWallRanges :: WallIntersection -> Volume -> Int -> Int -> Range -> (Range, DL.DList (Range, RenderData))
-          createWallRanges (Open wallBottom wallTop) (Volume vBottom vTop) defTexBottom defTexTop window =
+          createSpriteRanges :: [Sprite] -> Range -> (Range, DL.DList (Range, RenderData))
+          createSpriteRanges _ window = (window, DL.empty)
+          
+          createWallRanges :: GeometryIntersection -> Int -> Int -> Range -> (Range, DL.DList (Range, RenderData))
+          createWallRanges (GI _ _ (Open wallBottom wallTop) sprites (Volume vBottom vTop)) defTexBottom defTexTop window =
                            createSideWallRanges Bottom vBottom wallBottom defTexBottom
             `thenSections` createSideWallRanges Top vTop wallTop defTexTop
+            `thenSections` createSpriteRanges sprites
                                     $ window
-          createWallRanges (Wall tex) _ _ _ window =
+          createWallRanges (GI _ _ (Wall tex) _ _) _ _ window =
                   let wall = DL.singleton (window, RenderData column ray i $ WallType distance tex)
                   in (invalidRange, wall)
 
           (nextWindow, allRanges) = 
                                      (createFloorRanges Bottom $ vBottom currentVolume)                         
                       `thenSections` (createFloorRanges Top $ vTop currentVolume)
-                      `thenSections` (createWallRanges hitWall nextVolume (vpBottomSkyTex viewParams) (vpTopSkyTex viewParams))
+                      `thenSections` (createWallRanges i (vpBottomSkyTex viewParams) (vpTopSkyTex viewParams))
                                             $ window
 
           moreOk = case hitWall of (Wall _) -> False

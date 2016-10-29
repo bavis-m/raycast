@@ -42,11 +42,11 @@ tileVolume :: Tile -> Volume
 tileVolume (TileWall _) = Volume NoSurface NoSurface
 tileVolume (TileOpen bottom top) = Volume (halfTileSurface bottom) (halfTileSurface top)
 
-instance Geometry (Level Tile) where
-  getVolume v level = tileVolume $ tile level $ mkCell v
+instance Geometry GameState where
+  getVolume v (GameState _ level _ _) = tileVolume $ tile level $ mkCell v
   {-# INLINE getVolume #-}
   
-  intersect ray level = let
+  intersect ray (GameState _ level _ _) = let
       wallSurfaceFromHalfTile (Floor _ _ tex) = WallSurface tex
       wallSurfaceFromHalfTile _ = NoWall
       
@@ -61,7 +61,7 @@ instance Geometry (Level Tile) where
       
       geometryIntersection i = let
           intersectionTile = tile level $ intersectionCell i
-        in GI (tValue i) (collisionU ray i) (wallFromTile intersectionTile) (volumeFromTile intersectionTile)
+        in GI (tValue i) (collisionU ray i) (wallFromTile intersectionTile) [] (volumeFromTile intersectionTile)
     in fmap geometryIntersection $ intersections ray
   {-# INLINE intersect #-}
 
@@ -72,10 +72,10 @@ right :: Double -> Vec2
 right angle = mkVec2 (cos angle, sin angle)
 
 instance Renderable GameState where
-  render rp (GameState input level (bottomSky, topSky) view) = let
+  render rp gs@(GameState input level (bottomSky, topSky) view) = let
       viewParams = (ViewParams bottomSky topSky (vHorizon view) 380 30 (vEyeHeight view) (vPlaneDist view))
       ray = mkRay (vPos view) $ forwards $ vAngle view
-      sections = renderGeometry rp level viewParams ray
+      sections = renderGeometry rp gs viewParams ray
     in RenderFrame sections
 
 ifVal :: Bool -> Double -> Double
