@@ -44,7 +44,7 @@ class Geometry a where
   getVolume :: Vec2 -> a -> Volume
   intersect :: Ray -> a -> [GeometryIntersection]
 
-data RenderSurfaceData = WallType Double WallTex | FloorType Double FloorTex
+data RenderSurfaceData = WallType Double WallTex | FloorType Double FloorTex | SpriteType Double Double Double Int
 data RenderData = RenderData Int Ray GeometryIntersection RenderSurfaceData
 
 -- fast?
@@ -174,6 +174,8 @@ renderColumn renderParams column ray forward viewParams geometry = let
       ColumnSection column bottom top tex floorStartU floorStartV floorEndU floorEndV
         where (Vec2 floorStartU floorStartV) = floorUV uv h bottom
               (Vec2 floorEndU floorEndV) = floorUV uv h top
+    sectionFromRange (Range (bottom, top), RenderData column ray i (SpriteType u startV endV tex)) =
+      ColumnSection column bottom top tex u startV u endV
     
     -- find all the column sections for this column
     findRanges :: Volume -> Range -> [GeometryIntersection] -> DL.DList (Range, RenderData) -> DL.DList (Range, RenderData)
@@ -208,14 +210,26 @@ renderColumn renderParams column ray forward viewParams geometry = let
           createSideWallRanges side (HorzSurface (height, bound) _) (WallSurface tex) defaultTex window = wallRanges window side height bound tex defaultTex
           createSideWallRanges side _ _ defaultTex window = (window, DL.empty)
           
-          createSpriteRanges :: [Sprite] -> Range -> (Range, DL.DList (Range, RenderData))
-          createSpriteRanges _ window = (window, DL.empty)
+          createSpriteRange :: Range -> Double -> Sprite -> (Range, RenderData)
+          createSpriteRange window dist s@(Sprite bottom top u tex) =
+                let
+                  vDelta = top - bottom
+                  windowBottom = yDistanceHeight viewParams (rangeBottom window) dist
+                  windowTop = yDistanceHeight viewParams (rangeTop window) dist
+                  realBottom = max windowBottom bottom
+                  realTop = min windowTop top
+                  startV = (realBottom - bottom) / vDelta
+                  endV = startV + (realTop - realBottom) / vDelta
+                in (Range (heightDistanceY viewParams realBottom dist, heightDistanceY viewParams realTop dist), RenderData column ray i (SpriteType u startV endV tex))
+          
+          createSpriteRanges :: [Sprite] -> Double -> Range -> (Range, DL.DList (Range, RenderData))
+          createSpriteRanges sprites dist window = (window, DL.fromList . fmap (createSpriteRange window dist) $ sprites)
           
           createWallRanges :: GeometryIntersection -> Int -> Int -> Range -> (Range, DL.DList (Range, RenderData))
-          createWallRanges (GI _ _ (Open wallBottom wallTop) sprites (Volume vBottom vTop)) defTexBottom defTexTop window =
+          createWallRanges (GI dist _ (Open wallBottom wallTop) sprites (Volume vBottom vTop)) defTexBottom defTexTop window =
                            createSideWallRanges Bottom vBottom wallBottom defTexBottom
             `thenSections` createSideWallRanges Top vTop wallTop defTexTop
-            `thenSections` createSpriteRanges sprites
+            `thenSections` createSpriteRanges sprites dist
                                     $ window
           createWallRanges (GI _ _ (Wall tex) _ _) _ _ window =
                   let wall = DL.singleton (window, RenderData column ray i $ WallType distance tex)
